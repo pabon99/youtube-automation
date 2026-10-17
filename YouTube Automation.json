@@ -1,0 +1,862 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-5-NANO"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You create YouTube video concepts. The final video is exactly 32 seconds long and is built from four 8-second AI-generated scenes.\n\nCreate a spoken narration script of approximately 32 seconds at a natural pace. Keep the TOTAL script between 76 and 88 words (target about 80 words).\n\nOutput exactly this JSON structure:\n{\n  \"Script\": {\n    \"Intro\": \"18-22 words\",\n    \"Base\": \"38-44 words\",\n    \"CTA\": \"18-22 words\"\n  },\n  \"Title\": \"30-50 characters\",\n  \"Description\": \"50-150 characters\"\n}\n\nTitle must be short, engaging, curiosity-driven. Description should include a hook, brief context, CTA, and relevant hashtags. Write natural spoken language. Make the narration flow continuously from Intro to Base to CTA. Do not add extra JSON fields."
+            },
+            {
+              "content": "=<user-query>\n{{ $json.chatInput }}\n</user-query> "
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "reasoning": {
+            "reasoningOptions": {
+              "effort": "low"
+            }
+          },
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "id": "aabaf50b-3541-4d31-b9d2-a5a13d39db1a",
+      "name": "Idea Generator",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -2336,
+        320
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "script-field",
+              "name": "Script",
+              "value": "={{ $json.output[0].content[0].text.Script.Intro }} {{ $json.output[0].content[0].text.Script.Base }} {{ $json.output[0].content[0].text.Script.CTA }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "48da34df-6dda-4f6d-b649-f7d03b340486",
+      "name": "Script",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        -1984,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "videoUrl",
+              "renameField": true,
+              "outputFieldName": "videoUrls"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9e67961a-1bf4-4921-b10b-d8760730b3de",
+      "name": "Aggregate Video URLs",
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -1248,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst urls = Array.isArray(input.videoUrls) ? input.videoUrls : [];\nif (urls.length !== 4) {\n  throw new Error(`Expected exactly 4 generated video URLs, received ${urls.length}.`);\n}\n\nconst CLIP_DURATION = 8;\nconst clips = urls.map((url, i) => ({\n  asset: { type: \"video\", src: url },\n  start: i * CLIP_DURATION,\n  length: CLIP_DURATION,\n}));\n\nreturn [{\n  json: {\n    timeline: {\n      tracks: [{ clips }]\n    },\n    output: {\n      format: \"mp4\",\n      fps: 30,\n      size: {\n        width: 1280,\n        height: 720\n      }\n    }\n  }\n}];"
+      },
+      "id": "494f1687-adb2-4c5a-af00-c33c80e5dff8",
+      "name": "Build Shotstack Timeline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.shotstack.io/edit/v1/render",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "IO4zWjfsmO0nJQ5m5u93yoOcDXS8xK8srXiLJtV9"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "586aa861-0124-47eb-8917-20a6ecfd5155",
+      "name": "Start Shotstack Render",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -736,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "id": "94a75531-76d2-4594-8fc2-cec92ef5368f",
+      "name": "Wait for Shotstack",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -512,
+        16
+      ],
+      "webhookId": "24b917a2-63d3-4886-8143-096ec312edb6"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.shotstack.io/edit/v1/render/{{ $(\"Start Shotstack Render\").item.json.response.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "IO4zWjfsmO0nJQ5m5u93yoOcDXS8xK8srXiLJtV9"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2486e1d0-c5e8-450a-b42f-cd04ef0c74a3",
+      "name": "Check Shotstack Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -288,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.response.status }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              },
+              "rightValue": "done"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "432b0a8f-2efa-4ce0-8201-afbd02e0d528",
+      "name": "Shotstack Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -64,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.response.url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "464101da-78ef-4940-a164-cb2ad07cc754",
+      "name": "Download Merged Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        160,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-5-nano",
+          "mode": "list",
+          "cachedResultName": "GPT-5-NANO"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an AI video prompt generator for a professional 32-second YouTube video built from four 8-second Veo 3.1 clips.\n\nFor each segment, create ONE concise cinematic prompt that controls both visuals and native Veo audio. The current segment text must be spoken as the narration for that scene.\n\nOutput only this JSON:\n{\n  \"prompt\": \"video prompt text\"\n}\n\nPrompt rules:\n- One clear subject, action, environment, and camera direction.\n- Widescreen 16:9 composition, realistic cinematic detail, natural motion.\n- Use an off-screen professional documentary-style narrator; do not show a speaking avatar unless the segment specifically requires a person.\n- The narrator should speak the current segment EXACTLY as written, naturally and clearly, with confident pacing designed to fill approximately 8 seconds.\n- Keep the narrator voice consistent in style, age, gender, accent, and tone across all four clips.\n- Include relevant natural ambience and subtle sound effects that match the scene. Keep music absent or extremely subtle so the narration stays clear.\n- No on-screen text, captions, logos, readable signs, crowds, or complex interactions.\n- Match the meaning of the segment rather than illustrating every word literally.\n-The image should be 1-2 MB in size"
+            },
+            {
+              "content": "=Full 32-Second Script: {{ $(\"Script\").item.json.Script }}\n\nCurrent 8-Second Segment (speak exactly this): {{ $(\"Splitting into 8s\").item.json.text }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {
+          "reasoning": {
+            "reasoningOptions": {
+              "effort": "low"
+            }
+          },
+          "textFormat": {
+            "textOptions": {
+              "type": "json_object"
+            }
+          }
+        }
+      },
+      "id": "e7aa81ae-8bd1-43b9-8558-f9ef81ee9272",
+      "name": "Prompt Generator",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -1312,
+        320
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "value": "My Drive",
+          "mode": "list",
+          "cachedResultName": "My Drive",
+          "cachedResultUrl": "https://drive.google.com/drive/my-drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "10iN0KhZKKvnioZq4c2w-qiAPu8v2SkFB",
+          "mode": "list",
+          "cachedResultName": "YouTube Automation",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/10iN0KhZKKvnioZq4c2w-qiAPu8v2SkFB"
+        },
+        "options": {}
+      },
+      "id": "123c37cc-ceb7-471c-aa63-3cdc32452a87",
+      "name": "Upload Image to Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -736,
+        320
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "dDf9EjrBDEArNti2",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "share",
+        "folderNoRootId": {
+          "__rl": true,
+          "value": "10iN0KhZKKvnioZq4c2w-qiAPu8v2SkFB",
+          "mode": "list",
+          "cachedResultName": "YouTube Automation",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/10iN0KhZKKvnioZq4c2w-qiAPu8v2SkFB"
+        },
+        "permissionsUi": {
+          "permissionsValues": {
+            "role": "reader",
+            "type": "anyone"
+          }
+        },
+        "options": {}
+      },
+      "id": "d1e5e30a-556f-4ad9-b963-c06e847743df",
+      "name": "Share Drive Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -512,
+        320
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "dDf9EjrBDEArNti2",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.kie.ai/api/v1/veo/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 69b166681b75841c4b0587232c183d51"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { \"prompt\": $(\"Prompt Generator\").item.json.output[0].content[0].text.prompt, \"imageUrls\": [$(\"Upload Image to Drive\").item.json.webContentLink], \"model\": \"veo3_fast\", \"aspect_ratio\": \"16:9\", \"resolution\": \"720p\", \"duration\": \"8\", \"generationType\": \"REFERENCE_2_VIDEO\", \"enableTranslation\": true, \"enableFallback\": false } }}",
+        "options": {}
+      },
+      "id": "cb7fbb92-db16-40f8-98e8-2a8ba0e1ba9a",
+      "name": "Start Veo3 Generation (kie.ai)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -288,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "id": "bf646d2b-b5b8-4753-847a-671b8e47f632",
+      "name": "Wait for Veo3",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -64,
+        320
+      ],
+      "webhookId": "8419def2-3bbf-49bf-9399-c79679aba5f5"
+    },
+    {
+      "parameters": {
+        "url": "https://api.kie.ai/api/v1/veo/record-info",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "taskId",
+              "value": "={{ $(\"Start Veo3 Generation (kie.ai)\").item.json.data.taskId }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 69b166681b75841c4b0587232c183d51"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6c173306-02ed-4257-b8d4-994e96e41eef",
+      "name": "Check Veo3 Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        160,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ Number($json.data.successFlag) }}",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              },
+              "rightValue": 1,
+              "id": "1d17991c-3225-49e6-af09-e4a6204c9af2"
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2ed721a8-92d1-4745-b742-8f01d8a3ecc8",
+      "name": "Veo3 Done?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        384,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "video-url-field",
+              "name": "videoUrl",
+              "value": "={{ $json.data.response.resultUrls[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "segment-index-field",
+              "name": "index",
+              "value": "={{ $(\"Splitting into 8s\").item.json.index }}",
+              "type": "number"
+            },
+            {
+              "id": "segment-start-field",
+              "name": "start",
+              "value": "={{ $(\"Splitting into 8s\").item.json.start }}",
+              "type": "number"
+            },
+            {
+              "id": "segment-duration-field",
+              "name": "duration",
+              "value": "={{ $(\"Splitting into 8s\").item.json.duration }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "db7d28c2-0fae-4eac-be0c-13bac1d44581",
+      "name": "Extract Video URL",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        608,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a31ef47e-91a7-493c-9a65-6c0780b44b26",
+      "name": "Loop Over Script Segments",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1536,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-image-1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-IMAGE-1-MINI"
+        },
+        "prompt": "={{ $json.output[0].content[0].text.prompt }}",
+        "options": {
+          "size": "1024x1024"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        -960,
+        320
+      ],
+      "id": "4be11080-ab42-4d1a-a218-2f042d5f680f",
+      "name": "Generate an image1",
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputJson = $input.first().json;\nconst script = String(inputJson.Script || inputJson.text || inputJson.output || \"\").replace(/\\s+/g, \" \").trim();\nif (!script) throw new Error(\"Script field is empty.\");\n\nconst TOTAL_PARTS = 4;\nconst CHUNK_DURATION = 8;\nconst words = script.split(/\\s+/).filter(Boolean);\nif (words.length < TOTAL_PARTS) throw new Error(`Script has only ${words.length} words; need at least ${TOTAL_PARTS}.`);\n\n// Balance the narration across exactly four 8-second scenes.\nconst baseSize = Math.floor(words.length / TOTAL_PARTS);\nconst remainder = words.length % TOTAL_PARTS;\nconst chunks = [];\nlet wordIndex = 0;\n\nfor (let i = 0; i < TOTAL_PARTS; i++) {\n  const size = baseSize + (i < remainder ? 1 : 0);\n  const chunkWords = words.slice(wordIndex, wordIndex + size);\n  chunks.push({\n    index: i,\n    text: chunkWords.join(\" \"),\n    wordCount: chunkWords.length,\n    start: i * CHUNK_DURATION,\n    end: (i + 1) * CHUNK_DURATION,\n    duration: CHUNK_DURATION,\n  });\n  wordIndex += size;\n}\n\nreturn chunks.map(chunk => ({ json: chunk }));"
+      },
+      "id": "6271aa14-c81e-401b-8557-eabe21d118c6",
+      "name": "Splitting into 8s",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1760,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('Idea Generator').item.json.output[0].content[0].text.Title }}",
+        "regionCode": "BD",
+        "categoryId": "=15",
+        "options": {
+          "description": "={{ $('Idea Generator').item.json.output[0].content[0].text.Description }}",
+          "privacyStatus": "unlisted"
+        }
+      },
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [
+        384,
+        16
+      ],
+      "id": "df564715-1764-4bc5-8ca9-e0037a3f7732",
+      "name": "Upload a video",
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "gBqsfzNqOerOSQNV",
+          "name": "YouTube account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "public": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -2544,
+        320
+      ],
+      "id": "8a6ff73c-5c9c-4dee-8f01-29482971bb82",
+      "name": "When chat message received",
+      "webhookId": "b6b77a9f-37d9-4f56-9960-f8439e422ecd"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Idea Generator": {
+      "main": [
+        [
+          {
+            "node": "Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script": {
+      "main": [
+        [
+          {
+            "node": "Splitting into 8s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Video URLs": {
+      "main": [
+        [
+          {
+            "node": "Build Shotstack Timeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Shotstack Timeline": {
+      "main": [
+        [
+          {
+            "node": "Start Shotstack Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Shotstack Render": {
+      "main": [
+        [
+          {
+            "node": "Wait for Shotstack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Shotstack": {
+      "main": [
+        [
+          {
+            "node": "Check Shotstack Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Shotstack Status": {
+      "main": [
+        [
+          {
+            "node": "Shotstack Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Shotstack Done?": {
+      "main": [
+        [
+          {
+            "node": "Download Merged Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait for Shotstack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Merged Video": {
+      "main": [
+        [
+          {
+            "node": "Upload a video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Generator": {
+      "main": [
+        [
+          {
+            "node": "Generate an image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Image to Drive": {
+      "main": [
+        [
+          {
+            "node": "Share Drive Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Share Drive Folder": {
+      "main": [
+        [
+          {
+            "node": "Start Veo3 Generation (kie.ai)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start Veo3 Generation (kie.ai)": {
+      "main": [
+        [
+          {
+            "node": "Wait for Veo3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Veo3": {
+      "main": [
+        [
+          {
+            "node": "Check Veo3 Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Veo3 Status": {
+      "main": [
+        [
+          {
+            "node": "Veo3 Done?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Veo3 Done?": {
+      "main": [
+        [
+          {
+            "node": "Extract Video URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait for Veo3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Video URL": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Script Segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Script Segments": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Video URLs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prompt Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate an image1": {
+      "main": [
+        [
+          {
+            "node": "Upload Image to Drive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Splitting into 8s": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Script Segments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Idea Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e5fcbdf3-79cc-4689-9c13-86f86688e559",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "319e2f895c0c9d6bb410665e67da05dee818d02fb60bb329a57654c2da81df7b"
+  },
+  "nodeGroups": [],
+  "id": "hXFRsJ9o6Br31U9G",
+  "tags": []
+}
