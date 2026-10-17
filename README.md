@@ -16,11 +16,11 @@ This project demonstrates a YouTube automation workflow built using n8n. The wor
 
 ## Demo Video
 
-[Watch the workflow demonstration]((https://youtu.be/RxDNOhsPKtM))
+[Watch the workflow demonstration](https://youtu.be/RxDNOhsPKtM)
 
 ## Final Output
 
-[Watch the generated YouTube video]((https://www.youtube.com/watch?v=AyisX4BXBBs))
+[Watch the generated YouTube video](https://www.youtube.com/watch?v=AyisX4BXBBs)
 
 ## Workflow File
 
@@ -44,14 +44,11 @@ To use it:
 - `output-link.txt` — Link to the generated YouTube video
 - `README.md` — Project documentation
 
-## Author
 
-Add your name and professional profile links here.
-)
 
 ## Final Output
 
-[Watch the generated YouTube video](PASTE_YOUR_YOUTUBE_VIDEO_LINK_HERE)
+[Watch the generated YouTube video](https://www.youtube.com/watch?v=AyisX4BXBBs)
 
 ## Workflow File
 
